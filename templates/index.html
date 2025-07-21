@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Wordle Solver</title>
+<link rel="icon" href="/static/w_icon.png" />
+<link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+<div id="app">
+  <div class="top-bar">
+    <button id="newGame">New Game</button>
+    <div class="suggestion"><span id="guessLabel"></span><span id="entropyLabel"></span></div>
+    <button id="switchBtn">Switch</button>
+    <div class="inject-box">
+      <label>Inject:</label>
+      <input id="injectInput" maxlength="5" />
+      <button id="injectBtn">Add</button>
+    </div>
+    <div class="remaining">Remaining: <span id="remainingCount">0</span></div>
+  </div>
+
+  <div class="main">
+    <div class="grid" id="grid"></div>
+    <div class="side">
+      <div class="top-remaining" id="topRemaining"></div>
+      <div class="remaining-list" id="remainingList"></div>
+    </div>
+  </div>
+
+  <div class="submit-box">
+    <button id="submitBtn">Submit</button>
+  </div>
+</div>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
