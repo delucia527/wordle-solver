@@ -1,23 +1,25 @@
-const gridEl = document.getElementById('grid');
-const guessLabel = document.getElementById('guessLabel');
-const entropyLabel = document.getElementById('entropyLabel');
-const switchBtn = document.getElementById('switchBtn');
-const remainingCount = document.getElementById('remainingCount');
-const remainingList = document.getElementById('remainingList');
-const topRemaining = document.getElementById('topRemaining');
-const injectInput = document.getElementById('injectInput');
-const submitBtn = document.getElementById('submitBtn');
-const spinner = document.getElementById('spinner');
+// static/js/app.js
+
+const gridEl          = document.getElementById('grid');
+const guessLabel      = document.getElementById('guessLabel');
+const entropyLabel    = document.getElementById('entropyLabel');
+const switchBtn       = document.getElementById('switchBtn');
+const remainingCount  = document.getElementById('remainingCount');
+const remainingList   = document.getElementById('remainingList');
+const topRemaining    = document.getElementById('topRemaining');
+const injectInput     = document.getElementById('injectInput');
+const submitBtn       = document.getElementById('submitBtn');
+const spinner         = document.getElementById('spinner');
 
 let currentRow = 0; // step - 1
-let gridState = []; // per-row tiles { el, state }
+let gridState  = []; // per-row tiles { el, state }
 
 /* ---------- Grid Setup ---------- */
 function createGrid() {
   gridEl.innerHTML = '';
   gridState = [];
   for (let r = 0; r < 6; r++) {
-    const row = [];
+    const row    = [];
     const rowDiv = document.createElement('div');
     rowDiv.className = 'grid-row';
     for (let c = 0; c < 5; c++) {
@@ -56,10 +58,13 @@ async function api(url, method = 'GET', body = null) {
 
 /* ---------- UI Update ---------- */
 function updateUI(data) {
-  guessLabel.textContent = 'Guess: ' + data.current_guess;
-  entropyLabel.textContent = data.current_entropy + ' bits';
+  // **Always hide** spinner on any update
+  spinner.classList.add('hidden');
+
+  guessLabel.textContent     = 'Guess: ' + data.current_guess;
+  entropyLabel.textContent   = data.current_entropy + ' bits';
   remainingCount.textContent = data.remaining_count;
-  switchBtn.disabled = data.suggestions.length <= 1 || data.step === 1;
+  switchBtn.disabled         = data.suggestions.length <= 1 || data.step === 1;
 
   currentRow = data.step - 1;
   if (currentRow < 6) {
@@ -95,8 +100,8 @@ function updateUI(data) {
 /* ---------- Game Actions ---------- */
 async function newGame() {
   createGrid();
-  submitBtn.disabled = false;
-  spinner.classList.add('hidden');
+  submitBtn.disabled = false;       // **reset** Submit
+  spinner.classList.add('hidden');  // **hide** spinner
   const data = await api('/api/new_game', 'POST');
   updateUI(data);
 }
@@ -115,46 +120,40 @@ async function injectWord() {
 }
 
 async function submitFeedback() {
-  if (currentRow >= 6) return;
-  if (submitBtn.disabled) return;
+  if (currentRow >= 6 || submitBtn.disabled) return;
 
-  submitBtn.disabled = true;
-  spinner.classList.remove('hidden');
+  submitBtn.disabled   = true;         // **disable** Submit
+  spinner.classList.remove('hidden');  // **show** spinner
 
   const feedback = gridState[currentRow].map(c => c.state);
   try {
     const data = await api('/api/submit', 'POST', { feedback });
-    if (data.answer) {
-      if (currentRow + 1 < 6) {
-        const ans = data.answer;
-        for (let i = 0; i < 5; i++) {
-          const cell = gridState[currentRow + 1][i];
-          cell.el.textContent = ans[i];
-          cell.el.classList.add('green');
-        }
+    if (data.answer && currentRow + 1 < 6) {
+      const ans = data.answer;
+      for (let i = 0; i < 5; i++) {
+        const cell = gridState[currentRow + 1][i];
+        cell.el.textContent = ans[i];
+        cell.el.classList.add('green');
       }
     }
     updateUI(data);
   } finally {
-    spinner.classList.add('hidden');
-    submitBtn.disabled = false;
+    spinner.classList.add('hidden');  // **hide** spinner
+    submitBtn.disabled   = false;     // **re-enable** Submit
   }
 }
 
-/* ---------- Event Bindings ---------- */
-document.getElementById('newGame').onclick = newGame;
-document.getElementById('switchBtn').onclick = switchSuggestion;
-document.getElementById('submitBtn').onclick = submitFeedback;
-document.getElementById('injectBtn').onclick = injectWord;
-injectInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') {
-    injectWord();
-  }
-});
+/* ---------- DOM Ready & Event Bindings ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  // **Bind** controls
+  document.getElementById('newGame').onclick   = newGame;
+  document.getElementById('switchBtn').onclick = switchSuggestion;
+  document.getElementById('submitBtn').onclick = submitFeedback;
+  document.getElementById('injectBtn').onclick = injectWord;
+  injectInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') injectWord();
+  });
 
-/* ---------- Initial Load ---------- */
-createGrid();
-// Because the index route already resets the game, just fetch state.
-api('/api/state')
-  .then(data => updateUI(data))
-  .catch(() => newGame());
+  // **Initialize** on load with a fresh game
+  newGame();
+});
