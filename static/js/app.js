@@ -6,6 +6,8 @@ const remainingCount = document.getElementById('remainingCount');
 const remainingList = document.getElementById('remainingList');
 const topRemaining = document.getElementById('topRemaining');
 const injectInput = document.getElementById('injectInput');
+const submitBtn = document.getElementById('submitBtn');
+const spinner = document.getElementById('spinner');
 
 let currentRow = 0; // step - 1
 let gridState = []; // per-row tiles { el, state }
@@ -70,7 +72,6 @@ function updateUI(data) {
     }
   }
 
-  // Remaining list
   remainingList.innerHTML = '';
   topRemaining.textContent = '';
   if (data.top_remaining) {
@@ -94,6 +95,8 @@ function updateUI(data) {
 /* ---------- Game Actions ---------- */
 async function newGame() {
   createGrid();
+  submitBtn.disabled = false;
+  spinner.classList.add('hidden');
   const data = await api('/api/new_game', 'POST');
   updateUI(data);
 }
@@ -113,20 +116,29 @@ async function injectWord() {
 
 async function submitFeedback() {
   if (currentRow >= 6) return;
+  if (submitBtn.disabled) return;
+
+  submitBtn.disabled = true;
+  spinner.classList.remove('hidden');
+
   const feedback = gridState[currentRow].map(c => c.state);
-  const data = await api('/api/submit', 'POST', { feedback });
-  if (data.answer) {
-    // solved: place answer in next row if exists
-    if (currentRow + 1 < 6) {
-      const ans = data.answer;
-      for (let i = 0; i < 5; i++) {
-        const cell = gridState[currentRow + 1][i];
-        cell.el.textContent = ans[i];
-        cell.el.classList.add('green');
+  try {
+    const data = await api('/api/submit', 'POST', { feedback });
+    if (data.answer) {
+      if (currentRow + 1 < 6) {
+        const ans = data.answer;
+        for (let i = 0; i < 5; i++) {
+          const cell = gridState[currentRow + 1][i];
+          cell.el.textContent = ans[i];
+          cell.el.classList.add('green');
+        }
       }
     }
+    updateUI(data);
+  } finally {
+    spinner.classList.add('hidden');
+    submitBtn.disabled = false;
   }
-  updateUI(data);
 }
 
 /* ---------- Event Bindings ---------- */
@@ -142,12 +154,7 @@ injectInput.addEventListener('keydown', e => {
 
 /* ---------- Initial Load ---------- */
 createGrid();
+// Because the index route already resets the game, just fetch state.
 api('/api/state')
-  .then(data => {
-    if (!data.step) {
-      newGame();
-    } else {
-      updateUI(data);
-    }
-  })
+  .then(data => updateUI(data))
   .catch(() => newGame());
