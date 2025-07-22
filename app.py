@@ -2,7 +2,6 @@ import math, os
 from flask import Flask, session, jsonify, request, render_template
 from collections import defaultdict
 
-# --------- Flask Setup ---------
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
@@ -14,8 +13,7 @@ with open('guesses.txt') as f:
 GUESSES_SET = set(GUESSES)
 ANSWERS_SET = set(ANSWERS)
 
-# --------- Core Logic (shared) ---------
-
+# --------- Core Logic ---------
 def pattern(guess: str, answer: str) -> str:
     res = ['?'] * 5
     used = [False] * 5
@@ -43,7 +41,6 @@ def score_guess(guess: str, words: list[str]) -> float:
     return -sum((count/N) * math.log2(count/N) for count in freq.values())
 
 # --------- Session State Helpers ---------
-
 def new_game_state():
     first = "raise"
     possible = ANSWERS.copy()
@@ -64,10 +61,8 @@ def get_state():
 def save_state(state):
     session["game"] = state
 
-# --------- State Serialization ---------
-
+# --------- Serialization ---------
 def serialize_state(state):
-    # compute remaining words list + top entropy word list when threshold passed
     possible = state['possible']
     count = len(possible)
     remaining_sorted = []
@@ -90,7 +85,6 @@ def serialize_state(state):
     }
 
 # --------- Suggestion Recalculation ---------
-
 def recompute_suggestions(state):
     possible = state['possible']
     if len(possible) == 1:
@@ -100,16 +94,15 @@ def recompute_suggestions(state):
         state['suggestion_index'] = 0
         return state
     if len(possible) == 2:
-        p,b = possible
+        p, b = possible
         rems = set(possible)
         scores = [(g, score_guess(g, possible)) for g in GUESSES if g not in rems]
         scores.sort(key=lambda x: x[1], reverse=True)
         extras = [w for w,_ in scores[:8]]
-        state['suggestions'] = [p,b] + extras
-        state['entropies'] = [score_guess(p,possible), score_guess(b,possible)] + [s for _,s in scores[:8]]
+        state['suggestions'] = [p, b] + extras
+        state['entropies'] = [score_guess(p, possible), score_guess(b, possible)] + [s for _, s in scores[:8]]
         state['suggestion_index'] = 0
         return state
-    # General case
     scores = [(g, score_guess(g, possible)) for g in GUESSES]
     scores.sort(key=lambda x: x[1], reverse=True)
     top = scores[:10]
@@ -121,6 +114,8 @@ def recompute_suggestions(state):
 # --------- Routes ---------
 @app.route('/')
 def index():
+    # Always reset to Round 1 with RAISE on page load/refresh
+    session['game'] = new_game_state()
     return render_template('index.html')
 
 @app.route('/api/new_game', methods=['POST'])
@@ -161,7 +156,7 @@ def api_inject():
 @app.route('/api/submit', methods=['POST'])
 def api_submit():
     data = request.get_json(force=True)
-    feedback = data.get('feedback')  # e.g. [0,2,1,0,2]
+    feedback = data.get('feedback')
     if not isinstance(feedback, list) or len(feedback) != 5 or any(x not in [0,1,2] for x in feedback):
         return jsonify({"error": "Feedback must be list of 5 digits 0/1/2"}), 400
     state = get_state()
@@ -169,19 +164,16 @@ def api_submit():
     fb_str = ''.join(str(s) for s in feedback)
     state['possible'] = [w for w in state['possible'] if pattern(guess, w) == fb_str]
     if len(state['possible']) == 1:
-        # Final answer row artificially increment step for UI parity
         state['step'] += 1
         state['suggestions'] = [state['possible'][0]]
         state['entropies'] = [0.0]
         state['suggestion_index'] = 0
         save_state(state)
         return jsonify({"answer": state['possible'][0].upper(), **serialize_state(state)})
-    # Not solved: compute next suggestions
     state['step'] += 1
     state = recompute_suggestions(state)
     save_state(state)
     return jsonify(serialize_state(state))
 
-# Render requires a callable named "app".
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
